@@ -1,17 +1,8 @@
-// ==========================================
-// PORTFLOW - SIMPLE JAVASCRIPT
-// No Firebase, No Login, No Backend
-// Data is saved in browser localStorage
-// ==========================================
-
-
-// 1. LOAD DATA FROM BROWSER
-
+// Load saved data
 function loadData(key) {
     try {
-        let data = JSON.parse(localStorage.getItem(key) || "[]");
-        return Array.isArray(data) ? data : [];
-    } catch (error) {
+        return JSON.parse(localStorage.getItem(key)) || [];
+    } catch {
         return [];
     }
 }
@@ -21,9 +12,7 @@ let vessels = loadData("portflow_vessels");
 let movements = loadData("portflow_movements");
 let yardAllocations = loadData("portflow_yards");
 
-
-// 2. SAVE DATA IN BROWSER
-
+// Save data in browser
 function saveData() {
     localStorage.setItem("portflow_containers", JSON.stringify(containers));
     localStorage.setItem("portflow_vessels", JSON.stringify(vessels));
@@ -31,63 +20,40 @@ function saveData() {
     localStorage.setItem("portflow_yards", JSON.stringify(yardAllocations));
 }
 
+// Prevent HTML problems when displaying user input
+function escapeHTML(value) {
+    return String(value ?? "").replace(/[&<>"']/g, char => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;"
+    }[char]));
+}
 
-// 3. SHOW SUCCESS OR ERROR MESSAGE
-
+// Show a message
 function showMessage(message, type = "success") {
-    let oldMessage = document.querySelector(".toast-message");
-
-    if (oldMessage) {
-        oldMessage.remove();
-    }
+    document.querySelector(".toast-message")?.remove();
 
     let box = document.createElement("div");
     box.className = "toast-message";
     box.textContent = message;
-
     box.style.cssText = `
-        position: fixed;
-        right: 22px;
-        top: 22px;
-        z-index: 9999;
-        color: white;
-        padding: 13px 18px;
-        border-radius: 7px;
-        background: ${type === "success" ? "#16845d" : "#c43d3d"};
+        position:fixed; top:22px; right:22px; z-index:9999;
+        padding:13px 18px; color:white; border-radius:7px;
+        background:${type === "success" ? "#16845d" : "#c43d3d"};
     `;
 
     document.body.appendChild(box);
-
-    setTimeout(function () {
-        box.remove();
-    }, 3000);
+    setTimeout(() => box.remove(), 3000);
 }
 
-
-// 4. PROTECT TEXT BEFORE DISPLAYING IT IN HTML
-
-function escapeHTML(value) {
-    return String(value ?? "").replace(/[&<>"']/g, function (char) {
-        const symbols = {
-            "&": "&amp;",
-            "<": "&lt;",
-            ">": "&gt;",
-            '"': "&quot;",
-            "'": "&#39;"
-        };
-
-        return symbols[char];
-    });
-}
-
-
-// 5. ADD ACTIVITY TO MOVEMENT HISTORY
-
+// Add activity to history
 function addMovement(id, activity, location) {
     movements.unshift({
-        id: id,
-        activity: activity,
-        location: location,
+        id,
+        activity,
+        location,
         date: new Date().toLocaleString()
     });
 
@@ -95,32 +61,21 @@ function addMovement(id, activity, location) {
     displayHistory();
 }
 
-
-// ==========================================
-// 6. CONTAINER MANAGEMENT
-// ==========================================
-
-
-// DISPLAY ALL CONTAINERS
-
+// Container section
 function displayContainers() {
     let table = document.getElementById("containerTable");
-
     if (!table) return;
 
-    let search = document.getElementById("searchContainer");
-    let query = search ? search.value.toLowerCase() : "";
-
+    let query = document.getElementById("searchContainer")?.value.toLowerCase() || "";
     table.innerHTML = "";
 
-    containers.forEach(function (container) {
-
-        let details = (
-            container.id + " " +
-            container.destination + " " +
-            container.type + " " +
+    containers.forEach(container => {
+        let details = [
+            container.id,
+            container.destination,
+            container.type,
             container.status
-        ).toLowerCase();
+        ].join(" ").toLowerCase();
 
         if (!details.includes(query)) return;
 
@@ -131,15 +86,13 @@ function displayContainers() {
             <td>${escapeHTML(container.type)}</td>
             <td>${escapeHTML(container.size)}</td>
             <td>${escapeHTML(container.destination)}</td>
-
             <td>
                 <select class="status-select" data-status="${escapeHTML(container.id)}">
-                    <option ${container.status === "Arrived" ? "selected" : ""}>Arrived</option>
-                    <option ${container.status === "In Yard" ? "selected" : ""}>In Yard</option>
-                    <option ${container.status === "Departed" ? "selected" : ""}>Departed</option>
+                    ${["Arrived", "In Yard", "Departed"].map(status =>
+                        `<option ${container.status === status ? "selected" : ""}>${status}</option>`
+                    ).join("")}
                 </select>
             </td>
-
             <td>
                 <button class="action-btn" data-edit="${escapeHTML(container.id)}">Edit</button>
                 <button class="action-btn" data-vessel="${escapeHTML(container.id)}">Vessel</button>
@@ -150,232 +103,138 @@ function displayContainers() {
         table.appendChild(row);
     });
 
+    // Change status
+    table.querySelectorAll("[data-status]").forEach(select => {
+        select.addEventListener("change", () => {
+            let c = containers.find(item => item.id === select.dataset.status);
+            if (!c) return;
 
-    // CHANGE CONTAINER STATUS
+            let oldStatus = c.status;
+            c.status = select.value;
 
-    table.querySelectorAll("[data-status]").forEach(function (select) {
-
-        select.addEventListener("change", function () {
-
-            let container = containers.find(function (item) {
-                return item.id === select.dataset.status;
-            });
-
-            if (!container) return;
-
-            let oldStatus = container.status;
-            container.status = select.value;
-
-            addMovement(
-                container.id,
-                "Status changed: " + oldStatus + " to " + container.status,
-                container.destination
-            );
-
+            addMovement(c.id, `Status changed: ${oldStatus} to ${c.status}`, c.destination);
             displayContainers();
             displayYards();
             updateDashboard();
-
             showMessage("Container status updated.");
         });
     });
 
+    // Edit destination
+    table.querySelectorAll("[data-edit]").forEach(button => {
+        button.addEventListener("click", () => {
+            let c = containers.find(item => item.id === button.dataset.edit);
+            if (!c) return;
 
-    // EDIT CONTAINER DESTINATION
+            let destination = prompt("Enter new destination:", c.destination);
+            if (destination === null || !destination.trim()) return;
 
-    table.querySelectorAll("[data-edit]").forEach(function (button) {
-
-        button.addEventListener("click", function () {
-
-            let container = containers.find(function (item) {
-                return item.id === button.dataset.edit;
-            });
-
-            if (!container) return;
-
-            let newDestination = prompt(
-                "Enter new destination:",
-                container.destination
-            );
-
-            if (newDestination === null || newDestination.trim() === "") {
-                return;
-            }
-
-            container.destination = newDestination.trim();
-
+            c.destination = destination.trim();
             saveData();
-
-            addMovement(
-                container.id,
-                "Destination updated",
-                container.destination
-            );
-
+            addMovement(c.id, "Destination updated", c.destination);
             displayContainers();
             updateDashboard();
-
             showMessage("Container updated.");
         });
     });
 
+    // Assign vessel
+    table.querySelectorAll("[data-vessel]").forEach(button => {
+        button.addEventListener("click", () => {
+            let c = containers.find(item => item.id === button.dataset.vessel);
+            if (!c) return;
 
-    // ASSIGN VESSEL TO CONTAINER
-
-    table.querySelectorAll("[data-vessel]").forEach(function (button) {
-
-        button.addEventListener("click", function () {
-
-            let container = containers.find(function (item) {
-                return item.id === button.dataset.vessel;
-            });
-
-            if (!container) return;
-
-            if (vessels.length === 0) {
+            if (!vessels.length) {
                 showMessage("Add a vessel first.", "error");
                 return;
             }
 
-            let choices = vessels.map(function (vessel, index) {
-                return (index + 1) + ". " + vessel.name + " (" + vessel.id + ")";
-            }).join("\n");
+            let choices = vessels.map((v, i) =>
+                `${i + 1}. ${v.name} (${v.id})`
+            ).join("\n");
 
             let answer = prompt("Choose vessel number:\n" + choices);
-
             if (answer === null) return;
 
-            let selectedVessel = vessels[Number(answer) - 1];
+            let vessel = vessels[Number(answer) - 1];
 
-            if (!selectedVessel) {
+            if (!vessel) {
                 showMessage("Invalid vessel selection.", "error");
                 return;
             }
 
-            container.vessel = selectedVessel.name;
-
+            c.vessel = vessel.name;
             saveData();
-
-            addMovement(
-                container.id,
-                "Vessel assigned",
-                selectedVessel.name
-            );
-
+            addMovement(c.id, "Vessel assigned", vessel.name);
             displayContainers();
-
-            showMessage("Vessel assigned successfully.");
+            showMessage("Vessel assigned.");
         });
     });
 
-
-    // DELETE CONTAINER
-
-    table.querySelectorAll("[data-delete]").forEach(function (button) {
-
-        button.addEventListener("click", function () {
-
+    // Delete container
+    table.querySelectorAll("[data-delete]").forEach(button => {
+        button.addEventListener("click", () => {
             let id = button.dataset.delete;
-
             if (!confirm("Delete container " + id + "?")) return;
 
-            containers = containers.filter(function (item) {
-                return item.id !== id;
-            });
-
-            yardAllocations = yardAllocations.filter(function (item) {
-                return item.containerId !== id;
-            });
+            containers = containers.filter(c => c.id !== id);
+            yardAllocations = yardAllocations.filter(y => y.containerId !== id);
 
             saveData();
-
             addMovement(id, "Container deleted", "PortFlow");
-
             displayContainers();
             displayYards();
             updateDashboard();
-
             showMessage("Container deleted.");
         });
     });
 }
 
+// Add container
+document.getElementById("containerForm")?.addEventListener("submit", event => {
+    event.preventDefault();
 
-// ADD NEW CONTAINER
+    let id = document.getElementById("containerId").value.trim();
 
-let containerForm = document.getElementById("containerForm");
+    if (containers.some(c => c.id.toLowerCase() === id.toLowerCase())) {
+        showMessage("Container ID already exists.", "error");
+        return;
+    }
 
-if (containerForm) {
+    let container = {
+        id,
+        type: document.getElementById("containerType").value,
+        size: document.getElementById("containerSize").value,
+        destination: document.getElementById("destination").value.trim(),
+        status: "Arrived",
+        vessel: "Not Assigned",
+        yard: "Not Assigned",
+        block: "—",
+        slot: "—"
+    };
 
-    containerForm.addEventListener("submit", function (event) {
+    containers.push(container);
+    saveData();
+    addMovement(id, "Container added", container.destination);
 
-        event.preventDefault();
+    event.target.reset();
+    displayContainers();
+    displayYards();
+    updateDashboard();
+    showMessage("Container added successfully.");
+});
 
-        let id = document.getElementById("containerId").value.trim();
+// Search containers
+document.getElementById("searchContainer")?.addEventListener("input", displayContainers);
 
-        let exists = containers.some(function (item) {
-            return item.id.toLowerCase() === id.toLowerCase();
-        });
-
-        if (exists) {
-            showMessage("Container ID already exists.", "error");
-            return;
-        }
-
-        let newContainer = {
-            id: id,
-            type: document.getElementById("containerType").value,
-            size: document.getElementById("containerSize").value,
-            destination: document.getElementById("destination").value.trim(),
-            status: "Arrived",
-            vessel: "Not Assigned",
-            yard: "Not Assigned",
-            block: "—",
-            slot: "—"
-        };
-
-        containers.push(newContainer);
-
-        saveData();
-
-        addMovement(id, "Container added", newContainer.destination);
-
-        containerForm.reset();
-
-        displayContainers();
-        displayYards();
-        updateDashboard();
-
-        showMessage("Container added successfully.");
-    });
-}
-
-
-// SEARCH CONTAINERS
-
-document.getElementById("searchContainer")?.addEventListener(
-    "input",
-    displayContainers
-);
-
-
-// ==========================================
-// 7. VESSEL MANAGEMENT
-// ==========================================
-
-
-// DISPLAY VESSELS
-
+// Vessel section
 function displayVessels() {
-
     let table = document.getElementById("vesselTable");
-
     if (!table) return;
 
     table.innerHTML = "";
 
-    vessels.forEach(function (vessel) {
-
+    vessels.forEach(vessel => {
         let row = document.createElement("tr");
 
         row.innerHTML = `
@@ -383,105 +242,62 @@ function displayVessels() {
             <td>${escapeHTML(vessel.id)}</td>
             <td>${escapeHTML(vessel.voyage)}</td>
             <td>
-                <button class="action-btn danger" data-remove-vessel="${escapeHTML(vessel.id)}">
-                    Delete
-                </button>
+                <button class="action-btn danger" data-remove-vessel="${escapeHTML(vessel.id)}">Delete</button>
             </td>
         `;
 
         table.appendChild(row);
     });
 
-
-    // DELETE VESSEL
-
-    table.querySelectorAll("[data-remove-vessel]").forEach(function (button) {
-
-        button.addEventListener("click", function () {
-
+    table.querySelectorAll("[data-remove-vessel]").forEach(button => {
+        button.addEventListener("click", () => {
             let id = button.dataset.removeVessel;
-
-            let vessel = vessels.find(function (item) {
-                return item.id === id;
-            });
-
+            let vessel = vessels.find(v => v.id === id);
             if (!vessel) return;
 
-            let assigned = containers.some(function (container) {
-                return container.vessel === vessel.name;
-            });
-
-            if (assigned) {
-                showMessage("Reassign the vessel before deleting it.", "error");
+            if (containers.some(c => c.vessel === vessel.name)) {
+                showMessage("Reassign this vessel before deleting it.", "error");
                 return;
             }
 
             if (!confirm("Delete vessel " + vessel.name + "?")) return;
 
-            vessels = vessels.filter(function (item) {
-                return item.id !== id;
-            });
-
+            vessels = vessels.filter(v => v.id !== id);
             saveData();
             displayVessels();
-
             showMessage("Vessel deleted.");
         });
     });
 }
 
-
-// ADD NEW VESSEL
-
-document.getElementById("vesselForm")?.addEventListener("submit", function (event) {
-
+// Add vessel
+document.getElementById("vesselForm")?.addEventListener("submit", event => {
     event.preventDefault();
 
     let name = document.getElementById("vesselName").value.trim();
     let id = document.getElementById("vesselId").value.trim();
     let voyage = document.getElementById("voyageNumber").value.trim();
 
-    let exists = vessels.some(function (item) {
-        return item.id.toLowerCase() === id.toLowerCase();
-    });
-
-    if (exists) {
+    if (vessels.some(v => v.id.toLowerCase() === id.toLowerCase())) {
         showMessage("Vessel ID already exists.", "error");
         return;
     }
 
-    vessels.push({
-        name: name,
-        id: id,
-        voyage: voyage
-    });
-
+    vessels.push({ name, id, voyage });
     saveData();
     displayVessels();
-
     event.target.reset();
-
     showMessage("Vessel added successfully.");
 });
 
-
-// ==========================================
-// 8. YARD ALLOCATION
-// ==========================================
-
-
-// DISPLAY YARD ALLOCATIONS
-
+// Yard section
 function displayYards() {
-
     let table = document.getElementById("yardTable");
-
     if (!table) return;
 
     table.innerHTML = "";
 
-    yardAllocations.forEach(function (yard) {
-
+    yardAllocations.forEach(yard => {
         let row = document.createElement("tr");
 
         row.innerHTML = `
@@ -495,25 +311,19 @@ function displayYards() {
     });
 }
 
-
-// ADD OR UPDATE YARD LOCATION
-
-document.getElementById("yardForm")?.addEventListener("submit", function (event) {
-
+// Assign yard location
+document.getElementById("yardForm")?.addEventListener("submit", event => {
     event.preventDefault();
 
     let id = document.getElementById("yardContainerId").value.trim();
+    let c = containers.find(item => item.id.toLowerCase() === id.toLowerCase());
 
-    let container = containers.find(function (item) {
-        return item.id.toLowerCase() === id.toLowerCase();
-    });
-
-    if (!container) {
+    if (!c) {
         showMessage("Container not found.", "error");
         return;
     }
 
-    if (container.status === "Departed") {
+    if (c.status === "Departed") {
         showMessage("Departed containers cannot be assigned to a yard.", "error");
         return;
     }
@@ -522,155 +332,91 @@ document.getElementById("yardForm")?.addEventListener("submit", function (event)
     let block = document.getElementById("blockNumber").value.trim();
     let slot = document.getElementById("slotNumber").value.trim();
 
-    container.yard = yard;
-    container.block = block;
-    container.slot = slot;
-    container.status = "In Yard";
+    c.yard = yard;
+    c.block = block;
+    c.slot = slot;
+    c.status = "In Yard";
 
-    // Remove old allocation before adding the new one.
-
-    yardAllocations = yardAllocations.filter(function (item) {
-        return item.containerId.toLowerCase() !== id.toLowerCase();
-    });
-
-    yardAllocations.push({
-        containerId: container.id,
-        yard: yard,
-        block: block,
-        slot: slot
-    });
-
-    saveData();
-
-    addMovement(
-        container.id,
-        "Yard Location Assigned",
-        yard + " / " + block + " / " + slot
+    yardAllocations = yardAllocations.filter(y =>
+        y.containerId.toLowerCase() !== id.toLowerCase()
     );
 
-    event.target.reset();
+    yardAllocations.push({ containerId: c.id, yard, block, slot });
 
+    saveData();
+    addMovement(c.id, "Yard location assigned", `${yard} / ${block} / ${slot}`);
+
+    event.target.reset();
     displayContainers();
     displayYards();
     updateDashboard();
-
     showMessage("Yard location assigned.");
 });
 
-
-// ==========================================
-// 9. MOVEMENT HISTORY
-// ==========================================
-
-
-// DISPLAY MOVEMENT HISTORY
-
+// Movement history
 function displayHistory() {
-
     let table = document.getElementById("historyTable");
-
     if (!table) return;
 
     table.innerHTML = "";
 
-    movements.forEach(function (movement) {
-
+    movements.forEach(m => {
         let row = document.createElement("tr");
 
         row.innerHTML = `
-            <td>${escapeHTML(movement.id)}</td>
-            <td>${escapeHTML(movement.activity)}</td>
-            <td>${escapeHTML(movement.location)}</td>
-            <td>${escapeHTML(movement.date)}</td>
+            <td>${escapeHTML(m.id)}</td>
+            <td>${escapeHTML(m.activity)}</td>
+            <td>${escapeHTML(m.location)}</td>
+            <td>${escapeHTML(m.date)}</td>
         `;
 
         table.appendChild(row);
     });
 }
 
-
-// ==========================================
-// 10. DASHBOARD SUMMARY
-// ==========================================
-
-
-// UPDATE DASHBOARD NUMBERS
-
+// Dashboard numbers
 function updateDashboard() {
-
     let total = document.getElementById("totalContainers");
-
     if (!total) return;
 
-    let arrived = containers.filter(function (item) {
-        return item.status === "Arrived";
-    }).length;
-
-    let inYard = containers.filter(function (item) {
-        return item.status === "In Yard";
-    }).length;
-
-    let departed = containers.filter(function (item) {
-        return item.status === "Departed";
-    }).length;
-
     total.textContent = containers.length;
-
-    document.getElementById("arrivedContainers").textContent = arrived;
-    document.getElementById("yardContainers").textContent = inYard;
-    document.getElementById("departedContainers").textContent = departed;
+    document.getElementById("arrivedContainers").textContent =
+        containers.filter(c => c.status === "Arrived").length;
+    document.getElementById("yardContainers").textContent =
+        containers.filter(c => c.status === "In Yard").length;
+    document.getElementById("departedContainers").textContent =
+        containers.filter(c => c.status === "Departed").length;
 }
 
-
-// ==========================================
-// 11. CONTAINER TRACKING
-// ==========================================
-
-
-// SEARCH CONTAINER USING ITS ID
-
+// Track container
 function trackContainer() {
-
-    let id = document.getElementById("trackingId").value.trim();
-
+    let id = document.getElementById("trackingId").value.trim().toLowerCase();
     let result = document.getElementById("trackingResult");
 
-    let container = containers.find(function (item) {
-        return item.id.toLowerCase() === id.toLowerCase();
-    });
+    let c = containers.find(item => item.id.toLowerCase() === id);
 
-    if (!container) {
+    if (!c) {
         result.textContent = "Container not found.";
         return;
     }
 
     result.innerHTML = `
         <h3>Container Details</h3>
-
-        <p><b>Container ID:</b> ${escapeHTML(container.id)}</p>
-        <p><b>Type:</b> ${escapeHTML(container.type)}</p>
-        <p><b>Size:</b> ${escapeHTML(container.size)}</p>
-        <p><b>Destination:</b> ${escapeHTML(container.destination)}</p>
-        <p><b>Status:</b> ${escapeHTML(container.status)}</p>
-        <p><b>Vessel:</b> ${escapeHTML(container.vessel || "Not assigned")}</p>
-        <p><b>Yard:</b> ${escapeHTML(container.yard || "Not assigned")}</p>
-        <p><b>Block:</b> ${escapeHTML(container.block || "—")}</p>
-        <p><b>Slot:</b> ${escapeHTML(container.slot || "—")}</p>
+        <p><b>Container ID:</b> ${escapeHTML(c.id)}</p>
+        <p><b>Type:</b> ${escapeHTML(c.type)}</p>
+        <p><b>Size:</b> ${escapeHTML(c.size)}</p>
+        <p><b>Destination:</b> ${escapeHTML(c.destination)}</p>
+        <p><b>Status:</b> ${escapeHTML(c.status)}</p>
+        <p><b>Vessel:</b> ${escapeHTML(c.vessel || "Not assigned")}</p>
+        <p><b>Yard:</b> ${escapeHTML(c.yard || "Not assigned")}</p>
+        <p><b>Block:</b> ${escapeHTML(c.block || "—")}</p>
+        <p><b>Slot:</b> ${escapeHTML(c.slot || "—")}</p>
     `;
 }
 
-
-// Allow HTML button to call this function.
-
 window.trackContainer = trackContainer;
 
-
-// ==========================================
-// 12. START PORTFLOW DASHBOARD
-// ==========================================
-
-// Display saved data when the website opens.
-
+// Start dashboard
 displayContainers();
 displayVessels();
 displayYards();
