@@ -3,8 +3,7 @@
 A public, browser-only container management simulator built with HTML, CSS and JavaScript.
 
 ## Features
-- Opens directly to the dashboard — no login or registration page
-- No Firebase, authentication, cloud database or backend server
+- Opens directly to the dashboard e
 - Add, search, edit and delete container records
 - Update container status
 - Add and manage vessels, then assign vessels to containers
@@ -12,8 +11,6 @@ A public, browser-only container management simulator built with HTML, CSS and J
 - Track containers and review movement history
 - Saves data in browser `localStorage`
 
-## Run locally
-Keep `index.html`, `style.css`, `script.js` and `port-background.jpg` in the same folder. Open `index.html` in a browser.
 
 ## Deploy with GitHub Pages
 1. Upload all four files to the root of a GitHub repository.
