@@ -3,7 +3,7 @@
 A public, browser-only container management simulator built with HTML, CSS and JavaScript.
 
 ## Features
-- Opens directly to the dashboard e
+- Opens directly to the dashboard 
 - Add, search, edit and delete container records
 - Update container status
 - Add and manage vessels, then assign vessels to containers
